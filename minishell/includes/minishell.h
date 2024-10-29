@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/13 10:06:57 by lantonio          #+#    #+#             */
-/*   Updated: 2024/10/29 12:55:41 by lantonio         ###   ########.fr       */
+/*   Updated: 2024/10/29 14:52:13 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -37,7 +37,6 @@ void	identify_command(char *command);
 char    **ft_split(char const *s, char c);
 int	    ft_strcmp(char *s1, char *s2);
 void	ft_putstr_fd(char *s, int fd);
-int 	check_read_from(char **str);
 int 	isset_in_mat(char **mat, char *str);
 
 #endif

@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/16 15:10:13 by lantonio          #+#    #+#             */
-/*   Updated: 2024/10/29 13:02:02 by lantonio         ###   ########.fr       */
+/*   Updated: 2024/10/29 14:47:55 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,10 +24,10 @@ void	pwd(char **str)
 		vet_len++;
 	if (vet_len > 2)
 	{
-		if (!ft_strcmp(str[vet_len - 2], ">"))
-			fd = open(str[vet_len - 1], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-		else if (!ft_strcmp(str[vet_len - 2], ">>"))
-			fd = open(str[vet_len - 1], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+		if (isset_in_mat(str, ">"))
+			fd = open(str[isset_in_mat(str, ">") + 1], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+		else if (isset_in_mat(str, ">>"))
+			fd = open(str[isset_in_mat(str, ">>") + 1], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
 	}
 	if (vet_len > 3)
 	{

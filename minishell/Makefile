@@ -6,7 +6,7 @@
 #    By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/09/11 16:35:01 by lantonio          #+#    #+#              #
-#    Updated: 2024/10/29 08:23:33 by lantonio         ###   ########.fr        #
+#    Updated: 2024/10/29 14:52:54 by lantonio         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -26,7 +26,7 @@ OBJS	= $(SRCS:.c=.o)
 
 $(NAME): $(OBJS)
 	@$(CC) $(FLAGS) $(OBJS) -Iincludes -o $(NAME) -lreadline
-	@echo "\033[1;32mSUCESS"
+	@echo "\033[1;32mMINISHELL CREATED"
 
 %.o:%.c
 	@$(CC) $(FLAGS) -c $< -o $@

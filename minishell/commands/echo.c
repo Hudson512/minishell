@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/16 15:52:12 by lantonio          #+#    #+#             */
-/*   Updated: 2024/10/29 12:56:23 by lantonio         ###   ########.fr       */
+/*   Updated: 2024/10/29 16:20:31 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,14 +25,14 @@ void	echo(char **str)
 		vet_len++;
 	if (vet_len >= 2)
 	{
-		if (!ft_strcmp(str[vet_len - 2], ">"))
-			fd = open(str[vet_len - 1], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-		else if (!ft_strcmp(str[vet_len - 2], ">>"))
-			fd = open(str[vet_len - 1], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+		if (isset_in_mat(str, ">"))
+			fd = open(str[isset_in_mat(str, ">") + 1], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+		else if (isset_in_mat(str, ">>"))
+			fd = open(str[isset_in_mat(str, ">>") + 1], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
 		if (!ft_strcmp(str[1], "-n"))
 			i = 1;
 	}
-	if (!check_read_from(str))
+	if (!isset_in_mat(str, ">>") || !isset_in_mat(str, ">"))
 	{
 		while (str[++i])
 		{
