@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/13 10:06:57 by lantonio          #+#    #+#             */
-/*   Updated: 2025/01/07 14:23:16 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/09 18:20:47 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,6 +25,8 @@
 # include <stdlib.h>
 # include <sys/wait.h>
 # include <unistd.h>
+
+extern int	g_return ;
 
 typedef struct s_result
 {
@@ -45,7 +47,7 @@ typedef struct s_env
 	struct s_env	*next;
 }					t_env;
 
-typedef enum
+typedef enum s_token_type
 {
 	TOKEN_COMMAND,
 	TOKEN_ARG,
@@ -54,15 +56,15 @@ typedef enum
 	TOKEN_REDIRECT_OUT,
 	TOKEN_APPEND_OUT,
 	TOKEN_HEREDOC,
-}					TokenType;
+}					t_token_type;
 
-typedef struct
+typedef struct s_token
 {
-	TokenType		type;
-	char			*value;
-}					Token;
+	t_token_type		type;
+	char				*value;
+}					t_token;
 
-typedef struct Command
+typedef struct s_cmd
 {
 	char			*command;
 	char			**args;
@@ -71,13 +73,13 @@ typedef struct Command
 	char			*heredoc_end;
 	int				redirect_out_type;
 	int				heredoc;
-	struct Command	*next;
-}					Command;
+	struct s_cmd	*next;
+}	t_cmd;
 
-typedef struct CommandTree
+typedef struct s_cmd_tree
 {
-	Command			*root;
-}					CommandTree;
+	t_cmd			*root;
+}					t_cmd_tree;
 
 // Tipos de alocação para identificar como liberar a memória
 typedef enum e_mem_type
@@ -96,6 +98,41 @@ typedef struct s_memory
 	t_mem_type	type;
 	size_t		size;
 }	t_memory;
+
+// Estrutura para file descriptors
+typedef struct s_fds {
+	int	fd[2];
+	int	old_fd[2];
+	int	heredoc_fd[2];
+	int	fd_in;
+}	t_fds;
+
+typedef struct s_exec_data
+{
+	char	**str;
+	t_env	**env;
+	char	**envp;
+	int		*g_returns;
+	t_fds	*fds;
+}	t_exec_data;
+
+// Prototipagens das funções
+int					setup_fds(t_fds *fds);
+int					handle_heredoc(t_cmd *cmd, t_exec_data *data);
+int					handle_heredoc_child(t_cmd *cmd, t_fds *fds);
+int					handle_heredoc_parent(t_fds *fds, int *status);
+int					handle_redirections(t_cmd *cmd, t_exec_data *data);
+int					handle_piped_command(t_cmd *cmd, t_exec_data *data);
+int					handle_piped_command_child(t_cmd *cmd, t_exec_data *data);
+int					handle_piped_command_parent(t_cmd *cmd, t_exec_data *data);
+int					handle_piped_command_parent_child(t_cmd *cmd,
+						t_exec_data *data);
+int					cleanup_fds(t_fds *fds);
+int					run_commands(t_cmd *cmd, char **str, t_env **env,
+						char **envp);
+char				*handle_child_process(void);
+char				*handle_pipe_end(char *command);
+char				*handle_parent_process(void);
 
 // checkers
 void				identify_command(char *line, t_env **env, char **envp,
@@ -135,7 +172,7 @@ void				echo(char **str, int *g_returns);
 int					cd(char **str, int *g_returns, t_env **env);
 int					ft_export(char **command, t_env **env, int *g_returns);
 int					ft_unset(char **command, t_env **env, int *g_returns);
-void				ft_exit(t_env **env, int status);
+void				ft_exit(char *exit_status, t_env **env, int status);
 void				ft_env(char **args, int *g_returns, t_env **env);
 
 // env
@@ -147,12 +184,12 @@ void				print_list(t_env *list, int flag);
 void				search_and_print_list(t_env *list, char *str, int fd);
 t_env				*find_env_var(t_env *env, const char *name);
 
-// Token
+// t_token
 char				**ft_tokens(const char *input, int *word_count);
-TokenType			identify_token(char *token);
-Token				**classify_tokens(char **tokens, int word_count,
+t_token_type		identify_token(char *token);
+t_token				**classify_tokens(char **tokens, int word_count,
 						t_env **env, int *g_returns);
-Command				*build_cmd(Token **tokens, int word_count);
+t_cmd				*build_cmd(t_token **tokens, int word_count);
 
 // Liberacao de memoria
 void				*allocate_mem(size_t nmemb, size_t size);

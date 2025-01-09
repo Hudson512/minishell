@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/30 10:30:56 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/07 14:09:56 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/08 17:23:34 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -137,6 +137,5 @@ char	*trim_spaces(char *str, size_t i)
 	while (++i < new_length)
 		trimmed[i] = start[i];
 	trimmed[new_length] = '\0';
-	free(str);
-	return (trimmed);
+	return (free(str), trimmed);
 }

@@ -6,45 +6,56 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/11/05 08:22:00 by lantonio          #+#    #+#             */
-/*   Updated: 2025/01/07 14:18:36 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/09 10:53:56 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/minishell.h"
 
-void	update_env_variable(char *key, char *value, t_env **env, int *g_returns)
+char	*build_env_string(const char *key, const char *value)
 {
 	char	*str;
 	char	*temp;
-	char	**args;
 
 	str = ft_strdup("export ");
 	if (!str)
-		return ;
+		return (NULL);
 	temp = str;
 	str = ft_strjoin(str, key);
 	free(temp);
 	if (!str)
-		return ;
+		return (NULL);
 	temp = str;
 	str = ft_strjoin(str, "=");
 	free(temp);
 	if (!str)
-		return ;
+		return (NULL);
 	temp = str;
 	str = ft_strjoin(str, value);
 	free(temp);
-	if (!str)
-		return ;
+	return (str);
+}
+
+void	execute_env_update(char *str, t_env **env, int *g_returns)
+{
+	char	**args;
+
 	args = ft_split(str, ' ');
 	if (!args)
-	{
-		free(str);
 		return ;
-	}
 	ft_export(args, env, g_returns);
-	free(str);
 	free_matrix(args);
+}
+
+void	update_env_variable(char *key, char *value, t_env **env, int *g_returns)
+{
+	char	*str;
+
+	str = build_env_string(key, value);
+	if (!str)
+		return ;
+	execute_env_update(str, env, g_returns);
+	free(str);
 }
 
 void	update_oldpwd_pwd(char *old_path, t_env **env, int *g_returns)

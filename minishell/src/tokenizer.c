@@ -6,49 +6,61 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/11/06 09:39:33 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/07 14:32:30 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/09 13:14:28 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/minishell.h"
 
-static int	count_words(const char *input)
-{
+typedef struct s_count_words_vars {
 	int		count;
 	bool	in_word;
 	char	quote;
-	int		i;
+	int		index;
+}	t_count_words_vars;
 
-	count = 0;
-	in_word = false;
-	quote = '\0';
-	i = 0;
-	while (input[i] != '\0')
+static int	handle_quote(const char *input, t_count_words_vars *vars)
+{
+	if (input[vars->index] == vars->quote)
+		vars->quote = '\0';
+	return (vars->index + 1);
+}
+
+static int	handle_non_quote(const char *input, t_count_words_vars *vars)
+{
+	if (input[vars->index] == '"' || input[vars->index] == '\'')
 	{
-		if (quote)
-		{
-			if (input[i] == quote)
-				quote = '\0';
-		}
-		else if (input[i] == '"' || input[i] == '\'')
-		{
-			if (!in_word)
-				count++;
-			quote = input[i];
-			in_word = true;
-		}
-		else if (isspace(input[i]))
-		{
-			in_word = false;
-		}
-		else if (!in_word)
-		{
-			count++;
-			in_word = true;
-		}
-		i++;
+		if (!vars->in_word)
+			vars->count++;
+		vars->quote = input[vars->index];
+		vars->in_word = true;
 	}
-	return (count);
+	else if (isspace(input[vars->index]))
+		vars->in_word = false;
+	else if (!vars->in_word)
+	{
+		vars->count++;
+		vars->in_word = true;
+	}
+	return (vars->index + 1);
+}
+
+static int	count_words(const char *input)
+{
+	t_count_words_vars	vars;
+
+	vars.count = 0;
+	vars.in_word = false;
+	vars.quote = '\0';
+	vars.in_word = 0;
+	while (input[vars.index] != '\0')
+	{
+		if (vars.quote)
+			vars.index = handle_quote(input, &vars);
+		else
+			vars.index = handle_non_quote(input, &vars);
+	}
+	return (vars.count);
 }
 
 static char	*allocate_word(int capacity)

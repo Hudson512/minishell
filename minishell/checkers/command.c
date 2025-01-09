@@ -3,19 +3,19 @@
 /*                                                        :::      ::::::::   */
 /*   command.c                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: hmateque <hmateque@student.42.fr>          +#+  +:+       +#+        */
+/*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/30 10:28:57 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/08 14:30:07 by hmateque         ###   ########.fr       */
+/*   Updated: 2025/01/09 18:19:14 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/minishell.h"
 
-static void	print_cmd(Command *root)
+static void	print_cmd(t_cmd *root)
 {
 	int		i;
-	Command	*current;
+	t_cmd	*current;
 
 	current = root;
 	return ;
@@ -39,7 +39,7 @@ static void	print_cmd(Command *root)
 	}
 }
 
-int	handle_redirection(Command *cmd)
+int	handle_redirection(t_cmd *cmd)
 {
 	int	fd;
 	int	saved_stdout;
@@ -64,7 +64,7 @@ int	handle_redirection(Command *cmd)
 	return (saved_stdout);
 }
 
-int	check_red_in(Command *cmd, int *fd_in)
+int	check_red_in(t_cmd *cmd, int *fd_in)
 {
 	if (cmd->redirect_in != NULL)
 	{
@@ -83,7 +83,7 @@ int	check_red_in(Command *cmd, int *fd_in)
 	return (0);
 }
 
-int	built_ins(Command *cmd, t_env **env, int *g_returns)
+int	built_ins(t_cmd *cmd, t_env **env, int *g_returns)
 {
 	if (!ft_strcmp(cmd->command, "echo"))
 		return (echo(cmd->args, g_returns), 1);
@@ -98,213 +98,332 @@ int	built_ins(Command *cmd, t_env **env, int *g_returns)
 	else if (!ft_strcmp(cmd->command, "unset"))
 		return (ft_unset(cmd->args, env, g_returns), 1);
 	else if (!ft_strcmp(cmd->command, "exit"))
-		return (ft_exit(env, 1), 1);
+		return (ft_exit(cmd->args[1], env, 1), 1);
 	return (0);
 }
 
-int	path_commands(Command *cmd, t_env **env, char **envp, int *g_returns)
+typedef struct s_path_cmd
 {
-	char		**paths;
 	char		path[1024];
-	int			i;
+	char		**paths;
 	pid_t		pid;
 	int			status;
 	t_env		*env_copy;
+}	t_path_cmd;
+
+static int	execute_direct_command(t_cmd *cmd, char **envp, int *g_returns)
+{
+	pid_t	pid;
+	int		status;
+
+	pid = fork();
+	if (pid == -1)
+		return (perror("Fork error"), -1);
+	if (pid == 0)
+	{
+		if (execve(cmd->command, cmd->args, envp) == -1)
+			return (perror("Exec error"), -1);
+		exit(EXIT_SUCCESS);
+	}
+	if (waitpid(pid, &status, 0) == -1)
+		return (perror("Waitpid error"), -1);
+	if (WIFEXITED(status))
+		*g_returns = WEXITSTATUS(status);
+	else if (WIFSIGNALED(status))
+		*g_returns = WTERMSIG(status);
+	return (*g_returns);
+}
+
+static t_env	*find_path_env(t_env *env)
+{
+	while (env)
+	{
+		if (!ft_strcmp(env->name, "PATH"))
+			return (env);
+		env = env->next;
+	}
+	return (NULL);
+}
+
+static void	construct_path(t_path_cmd *vars, t_cmd *cmd, int i)
+{
+	ft_strlcpy(vars->path, vars->paths[i], sizeof(vars->path));
+	ft_strlcat(vars->path, "/", sizeof(vars->path));
+	ft_strlcat(vars->path, cmd->command, sizeof(vars->path));
+}
+
+int	wait_and_set_return(t_path_cmd *vars, int *ret)
+{
+	if (waitpid(vars->pid, &vars->status, 0) == -1)
+		return (perror("Waitpid error"), -1);
+	if (WIFEXITED(vars->status))
+		*ret = WEXITSTATUS(vars->status);
+	else if (WIFSIGNALED(vars->status))
+		*ret = WTERMSIG(vars->status);
+	return (0);
+}
+
+static int	fork_and_execute(t_path_cmd *vars,
+	t_cmd *cmd, char **envp, int *ret)
+{
+	vars->pid = fork();
+	if (vars->pid == -1)
+		return (perror("Fork error"), -1);
+	if (vars->pid == 0)
+	{
+		if (execve(vars->path, cmd->args, envp) == -1)
+			return (perror("Exec error"), -1);
+		exit(EXIT_SUCCESS);
+	}
+	return (wait_and_set_return(vars, ret));
+}
+
+static int	try_run(t_path_cmd *vars, t_cmd *cmd, char **envp, int *ret)
+{
+	int	i;
+	int	result;
 
 	i = -1;
-	env_copy = *env;
-	if (!env_copy)
+	while (vars->paths[++i] != NULL)
+	{
+		construct_path(vars, cmd, i);
+		if (access(vars->path, X_OK) == 0)
+		{
+			result = fork_and_execute(vars, cmd, envp, ret);
+			if (result != 0)
+				return (result);
+			return (1);
+		}
+	}
+	return (0);
+}
+
+int	path_commands(t_cmd *cmd, t_env **env, char **envp, int *g_returns)
+{
+	t_path_cmd	cmd_vars;
+
+	if (!*env)
 		return (printf("Env Error\n"), -1);
-	if (cmd->command[0] == 47)
-		return (printf("minishell: %s: No such file or directory\n", cmd->command), -1);
 	if (access(cmd->command, X_OK) == 0)
+		return (execute_direct_command(cmd, envp, g_returns));
+	if (cmd->command[0] == '/')
+		return (printf("minishell: %s: No such file or directory\n",
+				cmd->command), -1);
+	cmd_vars.env_copy = find_path_env(*env);
+	if (!cmd_vars.env_copy || !cmd_vars.env_copy->value
+		|| !*cmd_vars.env_copy->value)
+		return (printf("t_cmd not found\n"), -1);
+	cmd_vars.paths = ft_split(cmd_vars.env_copy->value, ':');
+	if (!cmd_vars.paths)
+		return (printf("Memory allocation error\n"), -1);
+	if (try_run(&cmd_vars, cmd, envp, g_returns))
 	{
-		pid = fork();
-		if (pid == -1)
-			return (perror("Fork error"), -1);
-		if (pid == 0)
-		{
-			if (execve(cmd->command, cmd->args, envp) == -1)
-				return (perror("Exec error"), -1);
-			exit(EXIT_SUCCESS);
-		}
-		else
-		{
-			if (waitpid(pid, &status, 0) == -1)
-				return (perror("Waitpid error"), -1);
-			if (WIFEXITED(status))
-				*g_returns = WEXITSTATUS(status);
-			else if (WIFSIGNALED(status))
-				*g_returns = WTERMSIG(status);
-			return (*g_returns);
-		}
-	}
-	while (env_copy)
-	{
-		if (!ft_strcmp(env_copy->name, "PATH"))
-			break ;
-		env_copy = env_copy->next;
-	}
-	if (!env_copy->value || !*env_copy->value)
-		return (printf("Command not found\n"), -1);
-	paths = ft_split(env_copy->value, ':');
-	while (paths[++i] != NULL)
-	{
-		ft_strlcpy(path, paths[i], sizeof(path));
-		ft_strlcat(path, "/", sizeof(path));
-		ft_strlcat(path, cmd->command, sizeof(path));
-		if (access(path, X_OK) == 0)
-		{
-			pid = fork();
-			if (pid == -1)
-				return (perror("Fork error"), -1);
-			if (pid == 0)
-			{
-				if (execve(path, cmd->args, envp) == -1)
-					return (perror("Exec error"), -1);
-				exit(EXIT_SUCCESS);
-			}
-			else
-			{
-				if (waitpid(pid, &status, 0) == -1)
-					return (perror("Waitpid error"), -1);
-				if (WIFEXITED(status))
-					*g_returns = WEXITSTATUS(status);
-				else if (WIFSIGNALED(status))
-					*g_returns = WTERMSIG(status);
-				free_matrix(paths);
-				return (*g_returns);
-			}
-		}
+		free_matrix(cmd_vars.paths);
+		return (*g_returns);
 	}
 	*g_returns = 127;
-	free_matrix(paths);
+	free_matrix(cmd_vars.paths);
 	return (printf("%s: command not found\n", cmd->command), -1);
 }
 
-int	run_commands(Command *cmd, char **str, t_env **env, char **envp, int *g_returns)
+int	setup_fds(t_fds *fds)
 {
-	int		fd[2];
-	int		old_fd[2];
-	pid_t	pid;
-	int		status;
-	int		fd_in;
-	int		heredoc_fd[2];
+	fds->old_fd[0] = dup(STDOUT_FILENO);
+	if (fds->old_fd[0] == -1)
+		return (perror("dup error"), -1);
+	fds->old_fd[1] = dup(STDIN_FILENO);
+	if (fds->old_fd[1] == -1)
+		return (perror("dup error"), close(fds->old_fd[0]), -1);
+	return (0);
+}
+
+int	handle_heredoc_child(t_cmd *cmd, t_fds *fds)
+{
 	char	*str2;
 
-	old_fd[0] = dup(STDOUT_FILENO);
-	if (old_fd[0] == -1)
-		return (perror("dup error"), -1);
-	old_fd[1] = dup(STDIN_FILENO);
-	if (old_fd[1] == -1)
-		return (perror("dup error"), close(old_fd[0]), -1);
-	if (cmd->heredoc)
+	close(fds->heredoc_fd[0]);
+	while (1)
 	{
-		if (pipe(heredoc_fd) == -1)
-			return (perror("Error"), close(old_fd[1]), close(old_fd[0]), -1);
-		pid = fork();
-		if (pid == -1)
-			return (perror("Fork error"), close(heredoc_fd[0])
-				, close(heredoc_fd[1]), close(old_fd[0]), close(old_fd[1]), -1);
-		if (pid == 0)
+		str2 = readline("> ");
+		if (str2 == NULL)
+			return (-1);
+		if (strcmp(str2, cmd->heredoc_end) == 0)
 		{
-			close(heredoc_fd[0]);
-			while (1)
-			{
-				str2 = readline("> ");
-				if (str2 == NULL)
-					return (-1);
-				if (strcmp(str2, cmd->heredoc_end) == 0)
-				{
-					free(str2);
-					break ;
-				}
-				write(heredoc_fd[1], str2, ft_strlen(str2));
-				write(heredoc_fd[1], "\n", 1);
-				free(str2);
-			}
-			close(heredoc_fd[1]);
-			exit(EXIT_SUCCESS);
+			free(str2);
+			break ;
 		}
-		else
-		{
-			close(heredoc_fd[1]);
-			if (dup2(heredoc_fd[0], STDIN_FILENO) == -1)
-				return (perror("Dup2 error"), close(heredoc_fd[0])
-					, close(old_fd[0]), close(old_fd[1]), -1);
-			close(heredoc_fd[0]);
-			waitpid(pid, &status, 0);
-		}
+		write(fds->heredoc_fd[1], str2, ft_strlen(str2));
+		write(fds->heredoc_fd[1], "\n", 1);
+		free(str2);
 	}
-	fd[1] = handle_redirection(cmd);
-	if (fd[1] == -1)
-		return (close(old_fd[0]), close(old_fd[1]), -1);
-	if (check_red_in(cmd, &fd_in))
-		return (close(old_fd[0]), close(old_fd[1]), -1);
+	close(fds->heredoc_fd[1]);
+	exit(EXIT_SUCCESS);
+}
+
+int	handle_heredoc_parent(t_fds *fds, int *status)
+{
+	close(fds->heredoc_fd[1]);
+	if (dup2(fds->heredoc_fd[0], STDIN_FILENO) == -1)
+		return (perror("Dup2 error"), close(fds->heredoc_fd[0]), -1);
+	close(fds->heredoc_fd[0]);
+	waitpid(-1, status, 0);
+	return (0);
+}
+
+int	handle_heredoc(t_cmd *cmd, t_exec_data *data)
+{
+	pid_t	pid;
+	int		status;
+
+	if (pipe(data->fds->heredoc_fd) == -1)
+		return (perror("Error"), -1);
+	pid = fork();
+	if (pid == -1)
+		return (perror("Fork error"), close(data->fds->heredoc_fd[0]),
+			close(data->fds->heredoc_fd[1]), -1);
+	if (pid == 0)
+		return (handle_heredoc_child(cmd, data->fds));
+	else
+		return (handle_heredoc_parent(data->fds, &status));
+}
+
+int	handle_redirections(t_cmd *cmd, t_exec_data *data)
+{
+	data->fds->fd[1] = handle_redirection(cmd);
+	if (data->fds->fd[1] == -1)
+		return (-1);
+	if (check_red_in(cmd, &data->fds->fd_in))
+		return (-1);
+	return (0);
+}
+
+int	handle_piped_command_child(t_cmd *cmd, t_exec_data *data)
+{
+	close(data->fds->fd[0]);
+	if (dup2(data->fds->fd[1], STDOUT_FILENO) == -1)
+	{
+		perror("Dup2 error");
+		exit(EXIT_FAILURE);
+	}
+	close(data->fds->fd[1]);
+	if (!built_ins(cmd, data->env, data->g_returns))
+		path_commands(cmd, data->env, data->envp, data->g_returns);
+	exit(EXIT_SUCCESS);
+}
+
+int	handle_piped_command_parent_child(t_cmd *cmd, t_exec_data *data)
+{
+	if (dup2(data->fds->fd[0], STDIN_FILENO) == -1)
+	{
+		perror("Dup2 error");
+		exit(EXIT_FAILURE);
+	}
+	close(data->fds->fd[0]);
+	if (cmd->next != NULL)
+	{
+		run_commands(cmd->next, data->str, data->env, data->envp);
+		free_all_mem();
+	}
+	exit(EXIT_SUCCESS);
+}
+
+int	handle_piped_command_parent(t_cmd *cmd, t_exec_data *data)
+{
+	pid_t	pid;
+	int		status;
+
+	close(data->fds->fd[1]);
+	pid = fork();
+	if (pid == -1)
+		return (perror("Fork error"), -1);
+	if (pid == 0)
+		return (handle_piped_command_parent_child(cmd, data));
+	else
+	{
+		close(data->fds->fd[0]);
+		waitpid(pid, &status, 0);
+	}
+	return (0);
+}
+
+int	handle_piped_command(t_cmd *cmd, t_exec_data *data)
+{
+	pid_t	pid;
+
+	if (pipe(data->fds->fd) == -1)
+		return (perror("Err"), -1);
+	pid = fork();
+	if (pid == -1)
+		return (perror("Fork error"), -1);
+	if (pid == 0)
+		return (handle_piped_command_child(cmd, data));
+	else
+		return (handle_piped_command_parent(cmd, data));
+}
+
+int	cleanup_fds(t_fds *fds)
+{
+	int	status;
+
+	while (waitpid(-1, &status, WNOHANG) > 0)
+		;
+	if (dup2(fds->old_fd[0], STDOUT_FILENO) == -1)
+		return (perror("Dup2 error"), -1);
+	close(fds->old_fd[0]);
+	if (dup2(fds->old_fd[1], STDIN_FILENO) == -1)
+		return (perror("Dup2 error"), -1);
+	close(fds->old_fd[1]);
+	return (1);
+}
+
+int	setup_command_fds(t_fds *fds)
+{
+	return (setup_fds(fds));
+}
+
+int	handle_heredoc_and_redirections(t_cmd *cmd, t_exec_data *data)
+{
+	if (cmd->heredoc && handle_heredoc(cmd, data) == -1)
+		return (-1);
+	if (handle_redirections(cmd, data) == -1)
+		return (-1);
+	return (0);
+}
+
+int	execute_command(t_cmd *cmd, t_exec_data *data)
+{
 	if (cmd->command)
 	{
 		if (cmd->next != NULL)
 		{
-			if (pipe(fd) == -1)
-				return (perror("Err"), close(old_fd[0]), close(old_fd[1]), -1);
-			pid = fork();
-			if (pid == -1)
-				return (close(fd[0]), close(fd[1]), perror("Fork error")
-					, close(old_fd[0]), close(old_fd[1]), -1);
-			if (pid == 0)
-			{
-				close(fd[0]);
-				if (dup2(fd[1], STDOUT_FILENO) == -1)
-				{
-					perror("Dup2 error");
-					exit(EXIT_FAILURE);
-				}
-				close(fd[1]);
-				if (!built_ins(cmd, env, g_returns))
-					path_commands(cmd, env, envp, g_returns);
-				exit(EXIT_SUCCESS);
-			}
-			else
-			{
-				close(fd[1]);
-				pid = fork();
-				if (pid == -1)
-					return (close(fd[0]), perror("Fork error")
-						, close(old_fd[0]), close(old_fd[1]), -1);
-				if (pid == 0)
-				{
-					if (dup2(fd[0], STDIN_FILENO) == -1)
-						(perror("Dup2 error"), exit(EXIT_FAILURE));
-					close(fd[0]);
-					if (cmd->next != NULL)
-					{
-						run_commands(cmd->next, str, env, envp, g_returns);
-						free_all_mem();
-					}
-					exit(EXIT_SUCCESS);
-				}
-				else
-				{
-					close(fd[0]);
-					waitpid(pid, &status, 0);
-				}
-			}
+			return (handle_piped_command(cmd, data));
 		}
 		else
 		{
-			if (!built_ins(cmd, env, g_returns))
-				path_commands(cmd, env, envp, g_returns);
+			if (!built_ins(cmd, data->env, data->g_returns))
+				path_commands(cmd, data->env, data->envp, data->g_returns);
 		}
 	}
-	while (waitpid(-1, &status, WNOHANG) > 0)
-		;
-	if (dup2(old_fd[0], STDOUT_FILENO) == -1)
-		return (perror("Dup2 error"), close(old_fd[0]), close(old_fd[1]), -1);
-	close(old_fd[0]);
-	if (dup2(old_fd[1], STDIN_FILENO) == -1)
-		return (perror("Dup2 error"), close(old_fd[1]), -1);
-	close(old_fd[1]);
-	return (1);
+	return (0);
+}
+
+int	run_commands(t_cmd *cmd, char **str, t_env **env, char **envp)
+{
+	t_fds		fds;
+	t_exec_data	data;
+
+	data.str = str;
+	data.env = env;
+	data.envp = envp;
+	data.g_returns = &g_return;
+	data.fds = &fds;
+	if (setup_command_fds(&fds) == -1)
+		return (-1);
+	if (handle_heredoc_and_redirections(cmd, &data) == -1)
+		return (-1);
+	if (execute_command(cmd, &data) == -1)
+		return (-1);
+	return (cleanup_fds(&fds));
 }
 
 void	handle_sigint_child(int sig)
@@ -313,256 +432,97 @@ void	handle_sigint_child(int sig)
 	exit(0);
 }
 
-char	*close_pipe(char *command, int i, int j)
+char	*handle_pipe_end(char *command)
 {
+	pid_t	pid;
 	char	*complete;
 	char	*temp;
-	pid_t	pid;
 
-	i = ft_strlen(command);
-	complete = NULL;
-	if (command[0] == '|')
-		return (printf("minishell: parse error near '|'\n"), NULL);
-	j = i - 2;
-	if (command[--i] == '|')
-	{
-		while (command[j] == ' ' || command[j] <= 13)
-			j--;
-		if (command[j] == '|')
-			return (printf("minishell: parse error near '|'\n"), NULL);
-		pid = fork();
-		if (pid == -1)
-			return (perror("Fork failed"), NULL);
-		if (pid == 0)
-		{
-			signal(SIGINT, handle_sigint_child);
-			complete = readline("> ");
-			if (!complete)
-			{
-				free(complete);
-				printf("minishell: syntax error: unexpected end of file\n");
-				exit(1);
-			}
-			while (complete[0] == '\0')
-			{
-				free(complete);
-				complete = readline("pipe> ");
-				if (!complete)
-				{
-					free(complete);
-					printf("minishell: syntax error: unexpected end of file\n");
-					exit(1);
-				}
-			}
-			exit(0);
-		}
-		else
-		{
-			wait(NULL);
-			temp = ft_strjoin(command, " ");
-			collect_mem(temp, MEM_CHAR_PTR, 0);
-			command = temp;
-			temp = ft_strjoin(command, complete);
-			collect_mem(temp, MEM_CHAR_PTR, 0);
-			command = temp;
-			free(complete);
-		}
-	}
-	else
-		return (command);
+	pid = fork();
+	if (pid == -1)
+		return (perror("Fork failed"), NULL);
+	if (pid == 0)
+		return (handle_child_process());
+	wait(NULL);
+	complete = handle_parent_process();
+	temp = ft_strjoin(command, " ");
+	collect_mem(temp, MEM_CHAR_PTR, 0);
+	command = temp;
+	temp = ft_strjoin(command, complete);
+	collect_mem(temp, MEM_CHAR_PTR, 0);
+	command = temp;
+	free(complete);
 	return (command);
 }
 
-char	*expand_variable(char *var, t_env *env, int *g_returns)
+char	*handle_parent_process(void)
 {
-	char	*result;
-	char	*current;
-	int		inside_single_quotes;
-	char	*exit_status;
-	char	*var_end;
-	t_env	*env_var;
-	char	*var_name;
+	char	*complete;
 
-	result = ft_strdup("");
-	current = var;
-	inside_single_quotes = 0;
-	while (*current)
+	complete = readline("> ");
+	if (!complete)
 	{
-		if (*current == '\'')
-		{
-			inside_single_quotes = !inside_single_quotes;
-			result = ft_strjoin_free(result, ft_strndup(current, 1));
-			current++;
-		}
-		else if (*current == '$' && !inside_single_quotes)
-		{
-			current++;
-			if (*current == '?')
-			{
-				exit_status = ft_itoa(*g_returns);
-				result = ft_strjoin_free(result, exit_status);
-				free(exit_status);
-				current++;
-			}
-			else
-			{
-				var_end = current;
-				while (*var_end && (ft_isalnum(*var_end) || *var_end == '_'))
-					var_end++;
-				var_name = ft_strndup(current, var_end - current);
-				env_var = find_env_var(env, var_name);
-				if (env_var)
-					result = ft_strjoin_free(result, env_var->value);
-				current = var_end;
-			}
-		}
-		else
-		{
-			result = ft_strjoin_free(result, ft_strndup(current, 1));
-			current++;
-		}
-	}
-	return (result);
-}
-
-char	*remove_single_quotes(char *str)
-{
-	int		i;
-	int		j;
-	char	*result;
-
-	i = 0;
-	j = 0;
-	result = malloc(strlen(str) + 1);
-	while (str[i])
-	{
-		if (str[i] != '\'')
-		{
-			result[j] = str[i];
-			j++;
-		}
-		i++;
-	}
-	result[j] = '\0';
-	return (result);
-}
-
-char	*remove_double_quotes(char *str)
-{
-	int		i;
-	int		j;
-	char	*result;
-
-	i = 0;
-	j = 0;
-	result = malloc(strlen(str) + 1);
-	while (str[i])
-	{
-		if (str[i] != '"')
-		{
-			result[j] = str[i];
-			j++;
-		}
-		i++;
-	}
-	result[j] = '\0';
-	return (result);
-}
-
-int	avoid_single_quote_error(char *str)
-{
-	int	i;
-	int	quote_count;
-
-	i = 0;
-	quote_count = 0;
-	while (str[i])
-	{
-		if (str[i] == '\'')
-			quote_count++;
-		i++;
-	}
-	if (quote_count > 1)
-		return (1);
-	return (0);
-}
-
-int	avoid_double_quote_error(char *str)
-{
-	int	i;
-	int	quote_count;
-
-	i = 0;
-	quote_count = 0;
-	while (str[i])
-	{
-		if (str[i] == '"')
-			quote_count++;
-		i++;
-	}
-	if (quote_count > 1)
-		return (1);
-	return (0);
-}
-
-char	**expander(char **str, t_env *env, int *g_returns, int wordcount)
-{
-	int		i;
-	char	*expanded;
-	char	*temp;
-
-	i = -1;
-	if (!str)
+		printf("minishell: syntax error: unexpected end of file\n");
 		return (NULL);
-	while (++i < wordcount)
+	}
+	while (complete[0] == '\0')
 	{
-		if (str[i][1] == '|' || str[i][1] == '>' || str[i][1] == '<' || str[i][1] == '$')
-			continue ;
-		else if (str[i][0] == '\'' && str[i][ft_strlen(str[i]) - 1] == '\'')
+		free(complete);
+		complete = readline("pipe> ");
+		if (!complete)
 		{
-			temp = ft_strndup(str[i] + 1, ft_strlen(str[i]) - 2);
-			collect_mem(temp, MEM_CHAR_PTR, 0);
-			str[i] = temp;
-		}
-		else if (str[i][0] == '"' && str[i][ft_strlen(str[i]) - 1] == '"')
-		{
-			temp = ft_strndup(str[i] + 1, ft_strlen(str[i]) - 2);
-			expanded = expand_variable(temp, env, g_returns);
-			collect_mem(expanded, MEM_CHAR_PTR, 0);
-			free(temp);
-			str[i] = expanded;
-		}
-		else
-		{
-			expanded = expand_variable(str[i], env, g_returns);
-			if (avoid_double_quote_error(expanded))
-			{
-				temp = remove_double_quotes(expanded);
-				collect_mem(temp, MEM_CHAR_PTR, 0);
-				free(expanded);
-				str[i] = temp;
-			}
-			else if (avoid_single_quote_error(expanded))
-			{	
-				temp = remove_single_quotes(expanded);
-				collect_mem(temp, MEM_CHAR_PTR, 0);
-				free(expanded);
-				str[i] = temp;
-			}
-			else
-			{
-				collect_mem(expanded, MEM_CHAR_PTR, 0);
-				str[i] = expanded;
-			}
+			printf("minishell: syntax error: unexpected end of file\n");
+			return (NULL);
 		}
 	}
-	return (str);
+	return (complete);
 }
 
-void	create_files(Command *command)
+char	*handle_child_process(void)
+{
+	char	*complete;
+
+	signal(SIGINT, handle_sigint_child);
+	complete = readline("> ");
+	if (!complete)
+	{
+		free(complete);
+		printf("minishell: syntax error: unexpected end of file\n");
+		exit(1);
+	}
+	while (complete[0] == '\0')
+	{
+		free(complete);
+		complete = readline("pipe> ");
+		if (!complete)
+		{
+			free(complete);
+			printf("minishell: syntax error: unexpected end of file\n");
+			exit(1);
+		}
+	}
+	exit(0);
+}
+
+char	*close_pipe(char *command, int i, int j)
+{
+	if (command[0] == '|')
+		return (printf("minishell: parse error near '|'\n"), NULL);
+	i = ft_strlen(command) - 1;
+	j = i - 1;
+	if (command[i] != '|')
+		return (command);
+	while (j >= 0 && (command[j] == ' ' || command[j] <= 13))
+		j--;
+	if (j >= 0 && command[j] == '|')
+		return (printf("minishell: parse error near '|'\n"), NULL);
+	return (handle_pipe_end(command));
+}
+
+void	create_files(t_cmd *command)
 {
 	int		fd;
-	Command	*cmd;
+	t_cmd	*cmd;
 
 	if (!command)
 		return ;
@@ -612,12 +572,11 @@ int	check_command(char *str, int *g_returns, int status)
 
 void	identify_command(char *line, t_env **env, char **envp, int *g_returns)
 {
-	Token	**classified_tokens;
+	t_token	**classified_tokens;
 	char	**str;
 	int		word_count;
-	Command	*cmd;
+	t_cmd	*cmd;
 
-	str = NULL;
 	if (check_command(line, g_returns, check_quote_syntax(line)))
 		return ;
 	line = trim_spaces(line, -1);
@@ -635,8 +594,7 @@ void	identify_command(char *line, t_env **env, char **envp, int *g_returns)
 	if (!classified_tokens)
 		return ;
 	cmd = build_cmd(classified_tokens, word_count);
-	create_files(cmd);
-	print_cmd(cmd);
+	(create_files(cmd), print_cmd(cmd));
 	if (cmd)
-		run_commands(cmd, str, env, envp, g_returns);
+		run_commands(cmd, str, env, envp);
 }

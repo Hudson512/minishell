@@ -6,27 +6,11 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/06 12:17:57 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/07 16:10:31 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/09 13:15:29 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "./includes/minishell.h"
-
-// Função auxiliar para liberar matriz de strings
-// static void free_str_matrix(char **matrix)
-// {
-//     size_t i;
-
-//     if (!matrix)
-//         return;
-//     i = 0;
-//     while (matrix[i])
-//     {
-//         free(matrix[i]);
-//         i++;
-//     }
-//     free(matrix);
-// }
 
 t_list	**get_mem_address(void)
 {
@@ -62,13 +46,35 @@ void	*allocate_mem(size_t nmemb, size_t size)
 }
 
 // Função para liberar toda a memória
-void	free_all_mem(void)
+void	free_mem_ptr(t_memory *mem)
 {
-	t_list		**mem_list;
-	t_list		*current;
-	t_list		*next;
+	if (mem->ptr)
+	{
+		free(mem->ptr);
+		mem->ptr = NULL;
+	}
+}
+
+void	free_mem_node(t_list *node)
+{
 	t_memory	*mem;
 
+	if (node->content)
+	{
+		mem = (t_memory *)node->content;
+		free_mem_ptr(mem);
+		free(mem);
+	}
+	free(node);
+}
+
+void	free_all_mem(void)
+{
+	t_list	**mem_list;
+	t_list	*current;
+	t_list	*next;
+
+	return ;
 	mem_list = get_mem_address();
 	if (!mem_list || !*mem_list)
 		return ;
@@ -76,53 +82,7 @@ void	free_all_mem(void)
 	while (current)
 	{
 		next = current->next;
-		if (current->content)
-		{
-			mem = (t_memory *)current->content;
-			if (mem->ptr)
-			{
-				switch (mem->type)
-				{
-					case MEM_CHAR_PTR:
-						if (mem->ptr)
-						{
-							free(mem->ptr);
-							mem->ptr = NULL;
-						}
-					break ;
-					case MEM_CHAR_MATRIX:
-						if (mem->ptr)
-						{
-							free(mem->ptr);
-							mem->ptr = NULL;
-						}
-					break ;
-					case MEM_TOKEN_PTR:
-						if (mem->ptr)
-						{
-							free(mem->ptr);
-							mem->ptr = NULL;
-						}
-					break ;
-					case MEM_COMMAND:
-						if (mem->ptr)
-						{
-							free(mem->ptr);
-							mem->ptr = NULL;
-						}
-					break ;
-					default:
-						if (mem->ptr)
-						{
-							free(mem->ptr);
-							mem->ptr = NULL;
-						}
-					break ;
-				}
-			}
-			free(mem);
-		}
-		free(current);
+		free_mem_node(current);
 		current = next;
 	}
 	*mem_list = NULL;

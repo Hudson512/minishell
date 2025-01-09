@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/11/19 08:23:31 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/07 14:20:11 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/09 10:56:44 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,13 +31,57 @@ void	free_env_list(t_env **env)
 	*env = NULL;
 }
 
-void	ft_exit(t_env **env, int status)
+int	is_numeric(const char *str)
 {
+	if (*str == '-' || *str == '+')
+		str++;
+	while (*str)
+	{
+		if (!isdigit(*str))
+			return (0);
+		str++;
+	}
+	return (1);
+}
+
+void	return_value(char *exit_status)
+{
+	long	ret;
+
+	if (exit_status[0] == '\0')
+	{
+		free(exit_status);
+		exit(0);
+	}
+	if (!is_numeric(exit_status))
+	{
+		printf("minsihell: exit: %s: numeric argument required\n", exit_status);
+		free(exit_status);
+		exit(2);
+	}
+	ret = ft_atoi(exit_status);
+	if (ret < 0 || ret > 255)
+	{
+		free(exit_status);
+		exit(ret % 256);
+	}
+	free(exit_status);
+	exit((int)ret);
+}
+
+void	ft_exit(char *exit_status, t_env **env, int status)
+{
+	char	*ret;
+
+	if (!exit_status)
+		ret = ft_strdup("");
+	else
+		ret = ft_strdup(exit_status);
 	free_env_list(env);
 	if (status == 1)
 		free_all_mem();
 	ft_putstr_fd("exit\n", 1);
-	exit(0);
+	return_value(ret);
 }
 
 void	free_matrix(char **matrix)
