@@ -3,16 +3,31 @@
 /*                                                        :::      ::::::::   */
 /*   minishell.c                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: hmateque <hmateque@student.42.fr>          +#+  +:+       +#+        */
+/*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/16 12:32:54 by lantonio          #+#    #+#             */
-/*   Updated: 2025/01/10 11:07:40 by hmateque         ###   ########.fr       */
+/*   Updated: 2025/01/10 15:36:50 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "./includes/minishell.h"
 
-int g_return ;
+int	g_return ;
+
+void	collect_mem(void *ptr, t_mem_type type, size_t size)
+{
+	t_memory	*mem;
+
+	if (!ptr)
+		return ;
+	mem = malloc(sizeof(t_memory));
+	if (!mem)
+		exit(ENOMEM);
+	mem->ptr = ptr;
+	mem->type = type;
+	mem->size = size;
+	ft_lstadd_back(get_mem_address(), ft_lstnew(mem));
+}
 
 void	signal_new_line(int signum)
 {

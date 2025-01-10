@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   memory_file2.c                                     :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: hmateque <hmateque@student.42.fr>          +#+  +:+       +#+        */
+/*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/06 12:17:57 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/10 12:27:45 by hmateque         ###   ########.fr       */
+/*   Updated: 2025/01/10 15:36:52 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,21 +17,6 @@ t_list	**get_mem_address(void)
 	static t_list	*ptr;
 
 	return (&ptr);
-}
-
-void	collect_mem(void *ptr, t_mem_type type, size_t size)
-{
-	t_memory	*mem;
-
-	if (!ptr)
-		return ;
-	mem = malloc(sizeof(t_memory));
-	if (!mem)
-		exit(ENOMEM);
-	mem->ptr = ptr;
-	mem->type = type;
-	mem->size = size;
-	ft_lstadd_back(get_mem_address(), ft_lstnew(mem));
 }
 
 void	*allocate_mem(size_t nmemb, size_t size)

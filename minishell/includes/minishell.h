@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   minishell.h                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: hmateque <hmateque@student.42.fr>          +#+  +:+       +#+        */
+/*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/13 10:06:57 by lantonio          #+#    #+#             */
-/*   Updated: 2025/01/10 11:04:28 by hmateque         ###   ########.fr       */
+/*   Updated: 2025/01/10 15:32:31 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -133,6 +133,7 @@ char				*ft_strndup(const char *s, size_t n);
 void				pwd(char **str, int *g_returns);
 void				echo(char **str, int *g_returns);
 int					cd(char **str, int *g_returns, t_env **env);
+void				update_oldpwd_pwd(char *old_path, t_env **env, int *g_returns);
 int					ft_export(char **command, t_env **env, int *g_returns);
 int					ft_unset(char **command, t_env **env, int *g_returns);
 void				ft_exit(t_env **env, int status);
