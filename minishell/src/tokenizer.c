@@ -3,52 +3,88 @@
 /*                                                        :::      ::::::::   */
 /*   tokenizer.c                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: hmateque <hmateque@student.42.fr>          +#+  +:+       +#+        */
+/*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/11/06 09:39:33 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/10 09:11:38 by hmateque         ###   ########.fr       */
+/*   Updated: 2025/01/10 17:30:50 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/minishell.h"
 
-static int	count_words(const char *input)
-{
+#define MEM_CHAR_PTR 1
+#define MEM_CHAR_PTR_PTR 2
+
+typedef struct s_word_data {
+	char	**matrix;
+	char	*word;
+	int		word_len;
+	int		word_capacity;
+	int		word_index;
+	bool	in_word;
+	char	quote;
+}	t_word_data;
+
+char		**split_words(const char *input, int *word_count);
+static int	finalize_quoted_word(t_word_data *data);
+static int	append_char_to_word(t_word_data *data, char current_char);
+
+typedef struct s_wc_state{
 	int		count;
 	bool	in_word;
 	char	quote;
-	int		i;
+}	t_wc_state;
 
-	count = 0;
-	in_word = false;
-	quote = '\0';
+static void	init_state(t_wc_state *state)
+{
+	state->count = 0;
+	state->in_word = false;
+	state->quote = '\0';
+}
+
+static void	handle_quote2(char c, t_wc_state *state)
+{
+	if (state->quote)
+	{
+		if (c == state->quote)
+			state->quote = '\0';
+	}
+	else if (c == '"' || c == '\'')
+	{
+		if (!state->in_word)
+			state->count++;
+		state->quote = c;
+		state->in_word = true;
+	}
+}
+
+static void	handle_non_quote(char c, t_wc_state *state)
+{
+	if (isspace(c))
+		state->in_word = false;
+	else if (!state->in_word)
+	{
+		state->count++;
+		state->in_word = true;
+	}
+}
+
+static int	count_words(const char *input)
+{
+	t_wc_state	state;
+	int			i;
+
+	init_state(&state);
 	i = 0;
 	while (input[i] != '\0')
 	{
-		if (quote)
-		{
-			if (input[i] == quote)
-				quote = '\0';
-		}
-		else if (input[i] == '"' || input[i] == '\'')
-		{
-			if (!in_word)
-				count++;
-			quote = input[i];
-			in_word = true;
-		}
-		else if (isspace(input[i]))
-		{
-			in_word = false;
-		}
-		else if (!in_word)
-		{
-			count++;
-			in_word = true;
-		}
+		if (state.quote)
+			handle_quote2(input[i], &state);
+		else
+			handle_non_quote(input[i], &state);
 		i++;
 	}
-	return (count);
+	return (state.count);
 }
 
 static char	*allocate_word(int capacity)
@@ -58,269 +94,187 @@ static char	*allocate_word(int capacity)
 
 static char	*resize_word(char *word, int *capacity)
 {
+	char	*new_word;
 	int		i;
 	int		new_capacity;
-	char	*new_word;
 
-	i = -1;
 	new_capacity = *capacity * 2;
 	new_word = (char *)malloc(new_capacity * sizeof(char));
 	if (new_word == NULL)
 		return (NULL);
 	collect_mem(new_word, MEM_CHAR_PTR, 0);
-	while (++i < *capacity)
+	i = 0;
+	while (i < *capacity)
+	{
 		new_word[i] = word[i];
+		i++;
+	}
 	*capacity = new_capacity;
 	return (new_word);
 }
 
-// static int	extract_words(const char *input, char **matrix, int *word_count)
-// {
-// 	int		word_index;
-// 	bool	in_word;
-// 	char	*word;
-// 	int		word_len;
-// 	int		word_capacity;
-// 	char	quote;
-// 	int		i;
-
-// 	i = 0;
-// 	word_index = 0;
-// 	in_word = false;
-// 	word = NULL;
-// 	word_len = 0;
-// 	word_capacity = 16;
-// 	quote = '\0';
-// 	while (input[i] != '\0')
-// 	{
-// 		if (quote)
-// 		{
-// 			if (input[i] == quote)
-// 			{
-// 				word[word_len++] = input[i];
-// 				word[word_len] = '\0';
-// 				matrix[word_index++] = word;
-// 				in_word = false;
-// 				word = NULL;
-// 				word_len = 0;
-// 				word_capacity = 16;
-// 				quote = '\0';
-// 			}
-// 			else
-// 			{
-// 				if (word_len + 1 >= word_capacity)
-// 				{
-// 					word = resize_word(word, &word_capacity);
-// 					if (word == NULL)
-// 						return (-1);
-// 				}
-// 				word[word_len++] = input[i];
-// 			}
-// 		}
-// 		else if (input[i] == '"' || input[i] == '\'')
-// 		{
-// 			if (!in_word)
-// 			{
-// 				in_word = true;
-// 				word = allocate_word(word_capacity);
-// 				if (word == NULL)
-// 					return (-1);
-// 				collect_mem(word, MEM_CHAR_PTR, 0);
-// 			}
-// 			quote = input[i];
-// 			word[word_len++] = input[i];
-// 		}
-// 		else if (isspace(input[i]))
-// 		{
-// 			if (in_word)
-// 			{
-// 				word[word_len] = '\0';
-// 				matrix[word_index++] = word;
-// 				in_word = false;
-// 				word = NULL;
-// 				word_len = 0;
-// 				word_capacity = 16;
-// 			}
-// 		}
-// 		else
-// 		{
-// 			if (!in_word)
-// 			{
-// 				in_word = true;
-// 				word = allocate_word(word_capacity);
-// 				if (word == NULL)
-// 					return (-1);
-// 				collect_mem(word, MEM_CHAR_PTR, 0);
-// 			}
-// 			if (word_len + 1 >= word_capacity)
-// 			{
-// 				word = resize_word(word, &word_capacity);
-// 				if (word == NULL)
-// 					return (-1);
-// 			}
-// 			word[word_len++] = input[i];
-// 		}
-// 		i++;
-// 	}
-// 	if (in_word)
-// 	{
-// 		word[word_len] = '\0';
-// 		matrix[word_index++] = word;
-// 	}
-// 	matrix[word_index] = NULL;
-// 	*word_count = word_index;
-// 	return (word_index);
-// }
-
-static int	handle_quote(char **word, int *word_len, int *word_capacity, 
-						char *quote, char current_char, int *word_index, 
-						char **matrix, bool *in_word)
+static int	handle_quote(t_word_data *data, char current_char)
 {
-	if (*quote)
+	if (data->quote)
 	{
-		if (current_char == *quote)
-		{
-			(*word)[(*word_len)++] = current_char;
-			(*word)[*word_len] = '\0';
-			matrix[(*word_index)++] = *word;
-			*in_word = false;
-			*word = NULL;
-			*word_len = 0;
-			*word_capacity = 16;
-			*quote = '\0';
-		}
+		if (current_char == data->quote)
+			return (finalize_quoted_word(data));
 		else
-		{
-			if (*word_len + 1 >= *word_capacity)
-			{
-				*word = resize_word(*word, word_capacity);
-				if (*word == NULL)
-					return (-1);
-			}
-			(*word)[(*word_len)++] = current_char;
-		}
-		return (1);
+			return (append_char_to_word(data, current_char));
 	}
 	return (0);
 }
 
-static int	handle_quote_start(char **word, int *word_len, int word_capacity,
-							char *quote, char current_char, bool *in_word)
+static int	finalize_quoted_word(t_word_data *data)
+{
+	data->word[data->word_len++] = data->quote;
+	data->word[data->word_len] = '\0';
+	data->matrix[data->word_index++] = data->word;
+	data->in_word = false;
+	data->word = NULL;
+	data->word_len = 0;
+	data->word_capacity = 16;
+	data->quote = '\0';
+	return (1);
+}
+
+static int	append_char_to_word(t_word_data *data, char current_char)
+{
+	if (data->word_len + 1 >= data->word_capacity)
+	{
+		data->word = resize_word(data->word, &data->word_capacity);
+		if (data->word == NULL)
+			return (-1);
+	}
+	data->word[data->word_len++] = current_char;
+	return (1);
+}
+
+static int	handle_quote_start(t_word_data *data, char current_char)
 {
 	if (current_char == '"' || current_char == '\'')
 	{
-		if (!*in_word)
+		if (!data->in_word)
 		{
-			*in_word = true;
-			*word = allocate_word(word_capacity);
-			if (*word == NULL)
+			data->in_word = true;
+			data->word = allocate_word(data->word_capacity);
+			if (data->word == NULL)
 				return (-1);
-			collect_mem(*word, MEM_CHAR_PTR, 0);
+			collect_mem(data->word, MEM_CHAR_PTR, 0);
 		}
-		*quote = current_char;
-		(*word)[(*word_len)++] = current_char;
+		data->quote = current_char;
+		data->word[data->word_len++] = current_char;
 		return (1);
 	}
 	return (0);
 }
 
-static int	handle_space(char **word, int *word_len, int *word_capacity,
-						bool *in_word, int *word_index, char **matrix)
+static int	handle_space(t_word_data *data)
 {
-	if (*in_word)
+	if (data->in_word)
 	{
-		(*word)[*word_len] = '\0';
-		matrix[(*word_index)++] = *word;
-		*in_word = false;
-		*word = NULL;
-		*word_len = 0;
-		*word_capacity = 16;
+		data->word[data->word_len] = '\0';
+		data->matrix[data->word_index++] = data->word;
+		data->in_word = false;
+		data->word = NULL;
+		data->word_len = 0;
+		data->word_capacity = 16;
 	}
 	return (0);
 }
 
-static int	handle_regular_char(char **word, int *word_len, int *word_capacity,
-							bool *in_word, char current_char)
+static int	handle_regular_char(t_word_data *data, char current_char)
 {
-	if (!*in_word)
+	if (!data->in_word)
 	{
-		*in_word = true;
-		*word = allocate_word(*word_capacity);
-		if (*word == NULL)
+		data->in_word = true;
+		data->word = allocate_word(data->word_capacity);
+		if (data->word == NULL)
 			return (-1);
-		collect_mem(*word, MEM_CHAR_PTR, 0);
+		collect_mem(data->word, MEM_CHAR_PTR, 0);
 	}
-	if (*word_len + 1 >= *word_capacity)
-	{
-		*word = resize_word(*word, word_capacity);
-		if (*word == NULL)
-			return (-1);
-	}
-	(*word)[(*word_len)++] = current_char;
-	return (0);
+	return (append_char_to_word(data, current_char));
 }
 
-static int	finalize_word(char **word, int *word_len, bool *in_word,
-						int *word_index, char **matrix)
+static int	finalize_word(t_word_data *data)
 {
-	if (*in_word)
+	if (data->in_word)
 	{
-		(*word)[*word_len] = '\0';
-		matrix[(*word_index)++] = *word;
+		data->word[data->word_len] = '\0';
+		data->matrix[data->word_index++] = data->word;
 	}
-	matrix[*word_index] = NULL;
-	return (*word_index);
+	data->matrix[data->word_index] = NULL;
+	return (data->word_index);
 }
 
-static int	extract_words(const char *input, char **matrix, int *word_count)
+static void	initialize_extraction(t_word_data *data)
 {
-	int		word_index;
-	bool	in_word;
-	char	*word;
-	int		word_len;
-	int		word_capacity;
-	char	quote;
-	int		i;
-	int		result;
+	data->word_index = 0;
+	data->in_word = false;
+	data->word = NULL;
+	data->word_len = 0;
+	data->word_capacity = 16;
+	data->quote = '\0';
+}
 
-	i = 0;
-	word_index = 0;
-	in_word = false;
-	word = NULL;
-	word_len = 0;
-	word_capacity = 16;
-	quote = '\0';
-	while (input[i] != '\0')
+static int	process_char(t_word_data *data, char current_char)
+{
+	int	result;
+
+	result = handle_quote(data, current_char);
+	if (result == -1)
+		return (-1);
+	if (result == 0)
 	{
-		result = handle_quote(&word, &word_len, &word_capacity, &quote,
-				input[i], &word_index, matrix, &in_word);
+		result = handle_quote_start(data, current_char);
 		if (result == -1)
 			return (-1);
 		if (result == 0)
 		{
-			result = handle_quote_start(&word, &word_len, word_capacity,
-					&quote, input[i], &in_word);
-			if (result == -1)
+			if (isspace(current_char))
+				handle_space(data);
+			else if (handle_regular_char(data, current_char) == -1)
 				return (-1);
-			if (result == 0)
-			{
-				if (isspace(input[i]))
-					handle_space(&word, &word_len, &word_capacity,
-						&in_word, &word_index, matrix);
-				else if (handle_regular_char(&word, &word_len, &word_capacity,
-						&in_word, input[i]) == -1)
-					return (-1);
-			}
 		}
+	}
+	return (0);
+}
+
+static int	extract_words(const char *input, t_word_data *data)
+{
+	int	i;
+
+	initialize_extraction(data);
+	i = 0;
+	while (input[i] != '\0')
+	{
+		if (process_char(data, input[i]) == -1)
+			return (-1);
 		i++;
 	}
-	*word_count = finalize_word(&word, &word_len, &in_word, &word_index, matrix);
-	return (word_index);
+	return (finalize_word(data));
+}
+
+char	**split_words(const char *input, int *word_count)
+{
+	t_word_data	data;
+	int			count;
+
+	count = count_words(input);
+	data.matrix = (char **)malloc((count + 1) * sizeof(char *));
+	if (data.matrix == NULL)
+		return (NULL);
+	collect_mem(data.matrix, MEM_CHAR_PTR_PTR, 0);
+	*word_count = extract_words(input, &data);
+	if (*word_count == -1)
+		return (NULL);
+	return (data.matrix);
 }
 
 char	**ft_tokens(const char *input, int *word_count)
 {
-	char	**matrix;
+	t_word_data	data;
+	char		**matrix;
 
 	*word_count = count_words(input);
 	matrix = (char **)allocate_mem((*word_count + 1), sizeof(char *));
@@ -330,8 +284,9 @@ char	**ft_tokens(const char *input, int *word_count)
 		*word_count = 0;
 		return (NULL);
 	}
+	data.matrix = matrix;
 	collect_mem(matrix, MEM_CHAR_MATRIX, (*word_count + 1));
-	if (extract_words(input, matrix, word_count) == -1)
+	if (extract_words(input, &data) == -1)
 	{
 		free_all_mem();
 		*word_count = 0;

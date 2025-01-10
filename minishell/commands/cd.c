@@ -12,6 +12,8 @@
 
 #include "../includes/minishell.h"
 
+void				update_oldpwd_pwd(char *old_path, t_env **env, int *g_returns);
+
 int	navigate_to_directory(char *path, t_env **env, int *g_returns)
 {
 	char	old_path[PATH_MAX];

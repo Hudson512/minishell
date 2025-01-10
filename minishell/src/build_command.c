@@ -6,7 +6,7 @@
 /*   By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/03 11:35:13 by hmateque          #+#    #+#             */
-/*   Updated: 2025/01/07 14:25:11 by lantonio         ###   ########.fr       */
+/*   Updated: 2025/01/10 16:39:25 by lantonio         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -88,13 +88,42 @@ void	process_command_args(Token **tokens, int *i, Command *cmd, int *index)
 	}
 }
 
+static Command	*handle_new_cmd(Command **root,
+	Command *cur, Token *token, int wc)
+{
+	Command	*new_cmd;
+
+	new_cmd = initialize_command(wc);
+	if (new_cmd == NULL)
+		return (NULL);
+	if (token->type == TOKEN_COMMAND)
+		new_cmd->command = token->value;
+	if (*root == NULL)
+		*root = new_cmd;
+	else
+		cur->next = new_cmd;
+	return (new_cmd);
+}
+
+static int	handle_redirections(Token **tokens, int *i, Command *current)
+{
+	if (tokens[*i]->type == TOKEN_REDIRECT_OUT)
+		return (process_redirect_out(tokens, i, current));
+	else if (tokens[*i]->type == TOKEN_APPEND_OUT)
+		return (process_append_out(tokens, i, current));
+	else if (tokens[*i]->type == TOKEN_REDIRECT_IN)
+		return (process_redirect_in(tokens, i, current));
+	else if (tokens[*i]->type == TOKEN_HEREDOC)
+		return (process_heredoc(tokens, i, current));
+	return (1);
+}
+
 Command	*build_cmd(Token **tokens, int wordcount)
 {
 	int		i;
 	int		arg_index;
 	Command	*root;
 	Command	*current;
-	Command	*new_cmd;
 
 	i = 0;
 	root = NULL;
@@ -103,36 +132,13 @@ Command	*build_cmd(Token **tokens, int wordcount)
 	{
 		if (tokens[i]->type == TOKEN_COMMAND || current == NULL)
 		{
-			new_cmd = initialize_command(wordcount);
+			current = handle_new_cmd(&root, current, tokens[i], wordcount);
+			if (current == NULL)
+				return (NULL);
 			arg_index = 0;
-			if (tokens[i]->type == TOKEN_COMMAND)
-				new_cmd->command = tokens[i]->value;
-			if (root == NULL)
-				root = new_cmd;
-			else
-				current->next = new_cmd;
-			current = new_cmd;
 		}
-		if (tokens[i]->type == TOKEN_REDIRECT_OUT)
-		{
-			if (!process_redirect_out(tokens, &i, current))
-				return (NULL);
-		}
-		else if (tokens[i]->type == TOKEN_APPEND_OUT)
-		{
-			if (!process_append_out(tokens, &i, current))
-				return (NULL);
-		}
-		else if (tokens[i]->type == TOKEN_REDIRECT_IN)
-		{
-			if (!process_redirect_in(tokens, &i, current))
-				return (NULL);
-		}
-		else if (tokens[i]->type == TOKEN_HEREDOC)
-		{
-			if (!process_heredoc(tokens, &i, current))
-				return (NULL);
-		}
+		if (!handle_redirections(tokens, &i, current))
+			return (NULL);
 		process_command_args(tokens, &i, current, &arg_index);
 		i++;
 	}

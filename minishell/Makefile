@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    Makefile                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: lantonio <lantonio@student.42.fr>          +#+  +:+       +#+         #
+#    By: hmateque <hmateque@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/09/11 16:35:01 by lantonio          #+#    #+#              #
-#    Updated: 2025/01/10 15:32:44 by lantonio         ###   ########.fr        #
+#    Updated: 2025/01/10 16:34:00 by hmateque         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -25,6 +25,11 @@ SRCS	= minishell.c\
 			./src/build_command.c\
 			./env/list_manipulation.c\
 			./checkers/command.c\
+			./checkers/identify_command.c\
+			./checkers/aux_command.c\
+			./checkers/aux_command_1.c\
+			./checkers/aux_command_2.c\
+			./checkers/ft_expander.c\
 			./checkers/string.c\
 			./signal/signal.c\
 			./commands/pwd.c\
